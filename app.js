@@ -29,10 +29,10 @@ async function addFiles(files) {
   }
   updateUI(); input.value = '';
 }
-input.addEventListener('change', event => addFiles(event.target.files));
+input.addEventListener('change', event => { primeAudio(); addFiles(event.target.files); });
 ['dragenter','dragover'].forEach(type => dropzone.addEventListener(type, event => { event.preventDefault(); dropzone.classList.add('dragging'); }));
 ['dragleave','drop'].forEach(type => dropzone.addEventListener(type, event => { event.preventDefault(); dropzone.classList.remove('dragging'); }));
-dropzone.addEventListener('drop', event => addFiles(event.dataTransfer.files));
+dropzone.addEventListener('drop', event => { primeAudio(); addFiles(event.dataTransfer.files); });
 $('durationRange').addEventListener('input', event => { state.duration = Number(event.target.value); $('durationValue').textContent = `${state.duration} seconds per photo`; });
 $('transitionSelect').addEventListener('change', event => state.transition = event.target.value);
 
@@ -123,12 +123,15 @@ async function playPreview() {
   const frame = (now) => { const elapsed = (now - started) / 1000; drawAt(Math.min(elapsed, length)); if (elapsed < length && state.playing && session === state.renderSession) requestAnimationFrame(frame); else if (session === state.renderSession) { state.playing = false; stopMusic(); $('movieOverlay').classList.add('visible'); } };
   requestAnimationFrame(frame);
 }
-previewBtn.onclick = () => { primeAudio(); previewSection.hidden = false; previewSection.scrollIntoView({ behavior: 'smooth', block: 'start' }); requestAnimationFrame(playPreview); };
-$('replayBtn').onclick = () => { primeAudio(); playPreview(); };
+previewBtn.onclick = () => {
+  // Keep the input event tiny: scrolling, canvas work, and music start in the next task.
+  previewSection.hidden = false;
+  setTimeout(() => { previewSection.scrollIntoView({ behavior: 'smooth', block: 'start' }); requestAnimationFrame(playPreview); }, 0);
+};
+$('replayBtn').onclick = () => { setTimeout(() => requestAnimationFrame(playPreview), 0); };
 $('closePreview').onclick = () => { ++state.renderSession; state.playing = false; stopMusic(); previewSection.hidden = true; };
 
 async function exportVideo() {
-  primeAudio();
   if (!window.MediaRecorder) { $('exportStatus').textContent = 'Your browser does not support video export. Try Chrome or Edge.'; return; }
   if (state.photos.length < 3) { $('exportStatus').textContent = 'Please choose at least 3 photos before exporting.'; return; }
   ++state.renderSession; state.playing = false; stopMusic(); drawAt(0);
