@@ -1,4 +1,4 @@
-# Frameflow
+# Photomotion
 
 A browser-only photo sequence video maker built for the hiring task.
 

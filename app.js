@@ -1,4 +1,4 @@
-const state = { photos: [], duration: 3, transition: 'mix', playing: false, audioContext: null, musicTimer: null, musicNodes: [], renderSession: 0 };
+const state = { photos: [], duration: 3, transition: 'mix', playing: false, audioContext: null, musicTimer: null, musicNodes: [], renderSession: 0, musicSession: 0 };
 const $ = (id) => document.getElementById(id);
 const input = $('photoInput'), grid = $('photoGrid'), dropzone = $('dropzone');
 const previewBtn = $('previewBtn'), previewSection = $('previewSection'), canvas = $('movieCanvas'), ctx = canvas.getContext('2d');
@@ -78,27 +78,42 @@ function drawAt(seconds) {
 }
 function movieLength() { return state.photos.length * state.duration - (state.photos.length - 1) * .8; }
 
+function primeAudio() {
+  const audio = state.audioContext || new AudioContext(); state.audioContext = audio;
+  if (audio.state === 'suspended') audio.resume().catch(() => {});
+}
+
 async function startMusic(destination) {
   stopMusic();
+  const musicSession = ++state.musicSession;
   const audio = state.audioContext || new AudioContext(); state.audioContext = audio;
   if (audio.state === 'suspended') await audio.resume();
   const master = audio.createGain(), compressor = audio.createDynamicsCompressor();
-  master.gain.value = .18; master.connect(compressor).connect(destination || audio.destination);
-  const melody = [261.63,329.63,392,523.25,493.88,392,329.63,293.66], bass = [130.81,146.83,174.61,130.81]; let phrase = 0;
+  master.gain.value = .34; compressor.threshold.value = -20; compressor.knee.value = 18; master.connect(compressor).connect(destination || audio.destination);
+  const chords = [[196,246.94,293.66],[174.61,220,261.63],[220,277.18,329.63],[146.83,196,246.94]];
+  const melody = [587.33,493.88,440,493.88,587.33,659.25,587.33,493.88,440,392,440,493.88,587.33,493.88,440,392]; let phrase = 0;
   const schedule = () => {
+    if (musicSession !== state.musicSession) return;
     const start = audio.currentTime + .08;
+    chords.forEach((chord, chordIndex) => chord.forEach((note, noteIndex) => {
+      const when = start + chordIndex * 2, pad = audio.createOscillator(), padGain = audio.createGain();
+      pad.type = noteIndex === 0 ? 'triangle' : 'sine'; pad.frequency.value = note;
+      padGain.gain.setValueAtTime(.0001, when); padGain.gain.linearRampToValueAtTime(noteIndex === 0 ? .11 : .07, when + .28); padGain.gain.exponentialRampToValueAtTime(.0001, when + 1.94);
+      pad.connect(padGain).connect(master); pad.start(when); pad.stop(when + 1.98); state.musicNodes.push(pad);
+    }));
     for (let i = 0; i < 16; i++) {
-      const when = start + i * .4, osc = audio.createOscillator(), gain = audio.createGain();
-      osc.type = i % 4 === 0 ? 'triangle' : 'sine'; osc.frequency.value = melody[(phrase + i) % melody.length];
-      gain.gain.setValueAtTime(.0001, when); gain.gain.exponentialRampToValueAtTime(i % 4 === 0 ? .62 : .3, when + .025); gain.gain.exponentialRampToValueAtTime(.0001, when + .34);
-      osc.connect(gain).connect(master); osc.start(when); osc.stop(when + .36); state.musicNodes.push(osc);
-      if (i % 4 === 0) { const low = audio.createOscillator(), lowGain = audio.createGain(); low.type = 'sine'; low.frequency.value = bass[Math.floor(phrase / 2 + i / 4) % bass.length]; lowGain.gain.setValueAtTime(.0001, when); lowGain.gain.exponentialRampToValueAtTime(.32, when + .03); lowGain.gain.exponentialRampToValueAtTime(.0001, when + .72); low.connect(lowGain).connect(master); low.start(when); low.stop(when + .74); state.musicNodes.push(low); }
+      const when = start + i * .5, bell = audio.createOscillator(), bellGain = audio.createGain();
+      bell.type = 'sine'; bell.frequency.value = melody[(phrase + i) % melody.length];
+      bellGain.gain.setValueAtTime(.0001, when); bellGain.gain.exponentialRampToValueAtTime(.17, when + .035); bellGain.gain.exponentialRampToValueAtTime(.0001, when + .42);
+      bell.connect(bellGain).connect(master); bell.start(when); bell.stop(when + .45); state.musicNodes.push(bell);
     }
     phrase = (phrase + 2) % melody.length;
   };
-  schedule(); state.musicTimer = setInterval(schedule, 6400); return audio;
+  // Defer node creation so the click handler stays responsive (avoids INP blocking).
+  setTimeout(() => { if (musicSession === state.musicSession) { schedule(); state.musicTimer = setInterval(schedule, 8000); } }, 0);
+  return audio;
 }
-function stopMusic() { clearInterval(state.musicTimer); state.musicTimer = null; state.musicNodes.forEach(node => { try { node.stop(); } catch (_) {} }); state.musicNodes = []; }
+function stopMusic() { ++state.musicSession; clearInterval(state.musicTimer); state.musicTimer = null; state.musicNodes.forEach(node => { try { node.stop(); } catch (_) {} }); state.musicNodes = []; }
 
 async function playPreview() {
   if (state.playing) return; const session = ++state.renderSession; state.playing = true; $('movieOverlay').classList.remove('visible'); drawAt(0);
@@ -108,11 +123,12 @@ async function playPreview() {
   const frame = (now) => { const elapsed = (now - started) / 1000; drawAt(Math.min(elapsed, length)); if (elapsed < length && state.playing && session === state.renderSession) requestAnimationFrame(frame); else if (session === state.renderSession) { state.playing = false; stopMusic(); $('movieOverlay').classList.add('visible'); } };
   requestAnimationFrame(frame);
 }
-previewBtn.onclick = () => { drawAt(0); previewSection.hidden = false; previewSection.scrollIntoView({ behavior: 'smooth', block: 'start' }); playPreview(); };
-$('replayBtn').onclick = playPreview;
+previewBtn.onclick = () => { primeAudio(); previewSection.hidden = false; previewSection.scrollIntoView({ behavior: 'smooth', block: 'start' }); requestAnimationFrame(playPreview); };
+$('replayBtn').onclick = () => { primeAudio(); playPreview(); };
 $('closePreview').onclick = () => { ++state.renderSession; state.playing = false; stopMusic(); previewSection.hidden = true; };
 
 async function exportVideo() {
+  primeAudio();
   if (!window.MediaRecorder) { $('exportStatus').textContent = 'Your browser does not support video export. Try Chrome or Edge.'; return; }
   if (state.photos.length < 3) { $('exportStatus').textContent = 'Please choose at least 3 photos before exporting.'; return; }
   ++state.renderSession; state.playing = false; stopMusic(); drawAt(0);
