@@ -1,4 +1,4 @@
-const state = { photos: [], duration: 3, transition: 'mix', playing: false, audioContext: null, musicTimer: null, musicNodes: [] };
+const state = { photos: [], duration: 3, transition: 'mix', playing: false, audioContext: null, musicTimer: null, musicNodes: [], renderSession: 0 };
 const $ = (id) => document.getElementById(id);
 const input = $('photoInput'), grid = $('photoGrid'), dropzone = $('dropzone');
 const previewBtn = $('previewBtn'), previewSection = $('previewSection'), canvas = $('movieCanvas'), ctx = canvas.getContext('2d');
@@ -79,31 +79,43 @@ function drawAt(seconds) {
 function movieLength() { return state.photos.length * state.duration - (state.photos.length - 1) * .8; }
 
 async function startMusic(destination) {
+  stopMusic();
   const audio = state.audioContext || new AudioContext(); state.audioContext = audio;
   if (audio.state === 'suspended') await audio.resume();
-  const master = audio.createGain(); master.gain.value = .075; master.connect(destination || audio.destination);
-  const notes = [261.63,329.63,392,523.25,392,329.63,293.66,369.99]; let beat = 0;
-  const schedule = () => { for (let i = 0; i < 16; i++) { const osc = audio.createOscillator(), gain = audio.createGain(); const time = audio.currentTime + i * .38; osc.type = i % 4 === 0 ? 'triangle' : 'sine'; osc.frequency.value = notes[(beat + i) % notes.length]; gain.gain.setValueAtTime(.0001, time); gain.gain.exponentialRampToValueAtTime(i % 4 === 0 ? .8 : .32, time + .03); gain.gain.exponentialRampToValueAtTime(.0001, time + .32); osc.connect(gain).connect(master); osc.start(time); osc.stop(time + .35); state.musicNodes.push(osc); } beat += 16; };
-  schedule(); state.musicTimer = setInterval(schedule, 5800); return audio;
+  const master = audio.createGain(), compressor = audio.createDynamicsCompressor();
+  master.gain.value = .18; master.connect(compressor).connect(destination || audio.destination);
+  const melody = [261.63,329.63,392,523.25,493.88,392,329.63,293.66], bass = [130.81,146.83,174.61,130.81]; let phrase = 0;
+  const schedule = () => {
+    const start = audio.currentTime + .08;
+    for (let i = 0; i < 16; i++) {
+      const when = start + i * .4, osc = audio.createOscillator(), gain = audio.createGain();
+      osc.type = i % 4 === 0 ? 'triangle' : 'sine'; osc.frequency.value = melody[(phrase + i) % melody.length];
+      gain.gain.setValueAtTime(.0001, when); gain.gain.exponentialRampToValueAtTime(i % 4 === 0 ? .62 : .3, when + .025); gain.gain.exponentialRampToValueAtTime(.0001, when + .34);
+      osc.connect(gain).connect(master); osc.start(when); osc.stop(when + .36); state.musicNodes.push(osc);
+      if (i % 4 === 0) { const low = audio.createOscillator(), lowGain = audio.createGain(); low.type = 'sine'; low.frequency.value = bass[Math.floor(phrase / 2 + i / 4) % bass.length]; lowGain.gain.setValueAtTime(.0001, when); lowGain.gain.exponentialRampToValueAtTime(.32, when + .03); lowGain.gain.exponentialRampToValueAtTime(.0001, when + .72); low.connect(lowGain).connect(master); low.start(when); low.stop(when + .74); state.musicNodes.push(low); }
+    }
+    phrase = (phrase + 2) % melody.length;
+  };
+  schedule(); state.musicTimer = setInterval(schedule, 6400); return audio;
 }
 function stopMusic() { clearInterval(state.musicTimer); state.musicTimer = null; state.musicNodes.forEach(node => { try { node.stop(); } catch (_) {} }); state.musicNodes = []; }
 
 async function playPreview() {
-  if (state.playing) return; state.playing = true; $('movieOverlay').classList.remove('visible');
+  if (state.playing) return; const session = ++state.renderSession; state.playing = true; $('movieOverlay').classList.remove('visible'); drawAt(0);
   // Never make the visual preview wait for audio-device initialization.
   startMusic().catch(() => { $('exportStatus').textContent = 'Preview is playing, but your browser blocked audio. Click Preview once more to enable sound.'; });
   const started = performance.now(); const length = movieLength();
-  const frame = (now) => { const elapsed = (now - started) / 1000; drawAt(Math.min(elapsed, length)); if (elapsed < length && state.playing) requestAnimationFrame(frame); else { state.playing = false; stopMusic(); $('movieOverlay').classList.add('visible'); } };
+  const frame = (now) => { const elapsed = (now - started) / 1000; drawAt(Math.min(elapsed, length)); if (elapsed < length && state.playing && session === state.renderSession) requestAnimationFrame(frame); else if (session === state.renderSession) { state.playing = false; stopMusic(); $('movieOverlay').classList.add('visible'); } };
   requestAnimationFrame(frame);
 }
-previewBtn.onclick = async () => { previewSection.hidden = false; previewSection.scrollIntoView({ behavior: 'smooth', block: 'start' }); await playPreview(); };
+previewBtn.onclick = () => { drawAt(0); previewSection.hidden = false; previewSection.scrollIntoView({ behavior: 'smooth', block: 'start' }); playPreview(); };
 $('replayBtn').onclick = playPreview;
-$('closePreview').onclick = () => { state.playing = false; stopMusic(); previewSection.hidden = true; };
+$('closePreview').onclick = () => { ++state.renderSession; state.playing = false; stopMusic(); previewSection.hidden = true; };
 
 async function exportVideo() {
   if (!window.MediaRecorder) { $('exportStatus').textContent = 'Your browser does not support video export. Try Chrome or Edge.'; return; }
   if (state.photos.length < 3) { $('exportStatus').textContent = 'Please choose at least 3 photos before exporting.'; return; }
-  state.playing = false; stopMusic();
+  ++state.renderSession; state.playing = false; stopMusic(); drawAt(0);
   const button = $('exportBtn'); button.disabled = true; $('exportStatus').textContent = 'Rendering your movie… please keep this tab open.';
   try {
     const videoStream = canvas.captureStream(30);
