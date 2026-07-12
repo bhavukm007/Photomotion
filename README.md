@@ -26,22 +26,6 @@ Photomotion is a lightweight web application that transforms **3–5 photos** in
 
 <img width="1902" height="1016" alt="Screenshot 2026-07-12 121010" src="https://github.com/user-attachments/assets/d7a4fc1a-ed5e-4ce0-9814-48b66342e379" />
 
-Example:
-
-```
-assets/
-├── home.png
-├── upload.png
-├── preview.png
-└── export.png
-```
-
-Then reference them like:
-
-```markdown
-![Home](assets/home.png)
-```
-
 ---
 
 ## 🛠️ Tech Stack
