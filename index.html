@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#111625" />
+    <title>Frameflow — Photo to Video</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="#"><span class="brand-mark">F</span><span>frameflow</span></a>
+        <p class="eyebrow">MAKE A MEMORY MOVIE</p>
+        <button id="resetBtn" class="text-button" type="button">Start over</button>
+      </header>
+
+      <section class="intro">
+        <div>
+          <p class="eyebrow">YOUR PHOTO STORY</p>
+          <h1>Turn moments into<br /><em>motion.</em></h1>
+        </div>
+        <p class="intro-copy">Choose a handful of photos. We’ll weave them into a short film with graceful transitions and an original soundtrack.</p>
+      </section>
+
+      <section class="workspace">
+        <div class="panel photos-panel">
+          <div class="panel-heading"><div><p class="step">01</p><h2>Choose your photos</h2></div><span id="countBadge" class="count-badge">0 / 5</span></div>
+          <p class="helper">Pick between 3 and 5 images, then drag them into the order you want.</p>
+          <label id="dropzone" class="dropzone" for="photoInput">
+            <input id="photoInput" type="file" accept="image/*" multiple hidden />
+            <span class="upload-icon">+</span>
+            <strong>Drop images here</strong><span>or browse from your device</span>
+          </label>
+          <div id="photoGrid" class="photo-grid" aria-live="polite"></div>
+          <p id="photoWarning" class="warning" role="alert"></p>
+        </div>
+
+        <div class="panel controls-panel">
+          <div class="panel-heading"><div><p class="step">02</p><h2>Shape the feeling</h2></div></div>
+          <div class="control-group">
+            <label for="transitionSelect">Transition</label>
+            <select id="transitionSelect"><option value="mix">Director's mix</option><option value="dissolve">Soft dissolve</option><option value="slide">Cinematic slide</option><option value="zoom">Zoom bloom</option><option value="wipe">Film curtain wipe</option><option value="blur">Memory blur</option></select>
+          </div>
+          <div class="control-group range-row"><div><label for="durationRange">Pace</label><span id="durationValue">3 seconds per photo</span></div><input id="durationRange" type="range" min="2" max="5" value="3" /></div>
+          <div class="sound-card"><div class="sound-icon">♫</div><div><strong>Daylight Waltz</strong><span>Original built-in soundtrack</span></div><span class="included">INCLUDED</span></div>
+          <button id="previewBtn" class="primary-button" type="button" disabled><span class="play-symbol">▶</span> Preview your movie</button>
+          <p id="readyHint" class="ready-hint">Add 3 photos to begin</p>
+        </div>
+      </section>
+
+      <section id="previewSection" class="preview-section" hidden>
+        <div class="preview-heading"><div><p class="eyebrow">YOUR STORYBOARD</p><h2>Ready for its close-up.</h2></div><button id="closePreview" class="text-button" type="button">Close preview</button></div>
+        <div class="movie-frame"><canvas id="movieCanvas" width="1280" height="720"></canvas><div id="movieOverlay" class="movie-overlay"><button id="replayBtn" class="replay-button" type="button">↻ Replay</button></div></div>
+        <div class="export-row"><p><strong>Looks good?</strong> Render it as a video you can keep or share.</p><button id="exportBtn" class="export-button" type="button">Export video <span>↓</span></button></div>
+        <p id="exportStatus" class="export-status" aria-live="polite"></p>
+      </section>
+    </main>
+    <footer>Made for the little moments worth replaying.</footer>
+    <script src="app.js"></script>
+  </body>
+</html>
